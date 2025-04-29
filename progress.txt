@@ -1,0 +1,10 @@
+1. Rewrite hyper log log to have hospitals and central guy, but need to figure out what hash to use etc, maybe look for existing code
+2. extend to hyper log log ++ (DONE)
+3. Run experiments on: what happens when u remove/replace a guy, 
+    what are the tradeoff visualizations for being more k anonymous and sacrificing accuracy, 
+    what are the effects of harmonic mean, what are the effects when u have much larger populations, 
+    what are the effects of having a really rare disease/query vs more common
+
+TODO list:
+1. have central guy (hospitals will send buckets, but may need to do extra things in case they are sparse)
+2. 

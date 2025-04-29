@@ -1,6 +1,7 @@
 import math
 import hashlib
 import numpy as np
+import xxhash
 
 class HyperLogLogPlusPlus:
     def __init__(self, p=14):
@@ -11,8 +12,11 @@ class HyperLogLogPlusPlus:
         self.m = 2 ** p
         self.alpha = self._get_alpha()
         self.registers = np.zeros(self.m, dtype=int) # buckets
-        self.sparse_list = set()
+        self.sparse_list = []
         self.sparse_threshold = 2000  # threshold for switching to dense mode
+        self.p_prime = 25 # sparse encoding uses up to 2^p'
+        self.tmp_set = set()
+        self.m_prime = 2 ** self.p_prime
 
     def _get_alpha(self):
         if self.m == 16:
@@ -25,39 +29,84 @@ class HyperLogLogPlusPlus:
             return 0.7213 / (1 + 1.079 / self.m)
 
     def _hash(self, value):
-        """Hash using SHA256 then interpret the result as integer."""
-        h = hashlib.sha256(value.encode('utf-8')).hexdigest()
+        # h = hashlib.(value.encode('utf-8')).hexdigest()
+        h = xxhash.xxh64(value.encode('utf-8')).hexdigest()
         return int(h, 16)
 
     def add(self, value):
         x = self._hash(value)
         if len(self.sparse_list) < self.sparse_threshold:
-            self.sparse_list.add(x)
+            print("adding in sparse mode")
+            k = self._encode_sparse(x)
+            self.tmp_set.add(k)
+
+            if len(self.tmp_set) > 512:  # some buffer before merging
+                self._merge_tmp_set()
+                self.tmp_set = set()
+                # Check if sparse representation exceeds size
+                if len(self.sparse_list) * 12 > self.m * 6:  # assume 12 bits per entry
+                    self._convert_to_normal()
         else:
-            idx = x >> (256 - self.p)  # first p bits
-            w = (x << self.p) & ((1 << 256) - 1)  # just maintain the lower 256-p bits of the hash
-            rank = self._rank(w, 256 - self.p) # number of leading zeros
-            self.registers[idx] = max(self.registers[idx], rank) # update max in bucket
+            print("adding in dense mode")
+            self._update_registers(x)
+
+    def _encode_sparse(self, x):
+        idx = x >> (64 - self.p)
+        w = x & ((1 << (64 - self.p)) - 1)
+        rank = self._rank(w, 64 - self.p)
+        return (idx << 6) | rank  # 6 bits to store rank (max 64)
+    
+    def _merge_tmp_set(self):
+        self.sparse_list = sorted(set(self.sparse_list).union(self.tmp_set))
+        self.tmp_set.clear()
+
 
     def _rank(self, bits, max_bits):
         """Count leading zeros in bits."""
         return max_bits - bits.bit_length() + 1
 
-    def _linear_counting(self, V):
-        return self.m * math.log(self.m / V) # V is number of zero-valued buckets
+    def _linear_counting(self, m, V):
+        print("in linear count: m=", m, ", V=", V)
+        return m * math.log(m / V) # V is number of zero-valued buckets
+    
+    def _convert_sparse_to_dense(self):
+        for encoded in self.sparse_list:
+            idx = encoded >> 6
+            rank = encoded & 0x3F
+            self.registers[idx] = max(self.registers[idx], rank)
+        self.format = 'normal'
+        self.sparse_list = []
+        self.tmp_set = set()
+
+    def _update_registers(self, x):
+        idx = x >> (64 - self.p)  # first p bits
+        # print(bin(x)[:15], bin(idx))
+        w = x & ((1 << (64 - self.p)) - 1)  # just maintain the lower 64-p bits of the hash
+        # print(bin(w))
+        # print(bin(x)[-15:], bin(w)[-15:])
+        # print(len(bin(x)), len(bin(w)))
+
+        rank = self._rank(w, 64 - self.p) # number of leading zeros
+        # rank = self.count_leading_zeros(w)
+        print("num leading zeros: ", rank, ", idx: ", idx)
+        self.registers[idx] = max(self.registers[idx], rank) # update max in bucket
 
     def estimate(self):
         if len(self.sparse_list) < self.sparse_threshold:
-            V = self.m - np.count_nonzero(self.registers)
-            return self._linear_counting(V)
+            self._merge_tmp_set()
+            V = self.m_prime - len(self.sparse_list)
+            # V = self.m - np.count_nonzero(self.registers)
+            print("V: ", V)
+            return self._linear_counting(self.m_prime, V)
         Z = 1.0 / np.sum(2.0 ** -self.registers)
         E = self.alpha * self.m * self.m * Z
+        print("E in estimate: ", E)
 
         # Bias correction and thresholds
         if E <= 2.5 * self.m: # small cardinality
             V = np.count_nonzero(self.registers == 0)
             if V != 0:
-                return self._linear_counting(V)
+                return self._linear_counting(self.m, V)
         elif E > (1/30) * (2 ** 32): # extremely large cardinality
             return -(2 ** 32) * math.log(1 - (E / 2 ** 32))
         return E # default
