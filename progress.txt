@@ -6,8 +6,8 @@
     what are the effects of having a really rare disease/query vs more common
 
 TODO list:
-2. add k anonymity
 3. run experiments
 
 DONE:
 1. have central guy (hospitals will send buckets, but may need to do extra things in case they are sparse)
+2. add k anonymity
