@@ -97,16 +97,7 @@ class HyperLogLogPlusPlus:
         self.mode = 'dense'
 
     def _update_registers(self, x):
-        # idx = x >> (64 - self.p)  # first p bits
-        # print(bin(x)[:15], bin(idx))
-        # w = x & ((1 << (64 - self.p)) - 1)  # just maintain the lower 64-p bits of the hash
-        # print(bin(w))
-        # print(bin(x)[-15:], bin(w)[-15:])
-        # print(len(bin(x)), len(bin(w)))
-
-        # rank = self._rank(w, 64 - self.p) # number of leading zeros
         idx, rank = self._encode_dense(x)
-        # print("num leading zeros: ", rank, ", idx: ", idx)
         self.registers[idx] = max(self.registers[idx], rank) # update max in bucket
         self.saved_ranks_for_k_anon_dense[idx].append(rank)
     

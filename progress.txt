@@ -6,8 +6,14 @@
     what are the effects of having a really rare disease/query vs more common
 
 TODO list:
-3. run experiments
+3.3 k anonymous and accuracy trade off
+3.4 what are the effects of harmonic mean, what are the effects when u have much larger populations
+3.5 k anonymous and buckets
+
+
 
 DONE:
 1. have central guy (hospitals will send buckets, but may need to do extra things in case they are sparse)
 2. add k anonymity
+3.1 remove/add patient
+3.2 what are the effects of having a really rare disease/query vs more common / proportion of unique patients
