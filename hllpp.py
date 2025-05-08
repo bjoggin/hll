@@ -24,6 +24,8 @@ class HyperLogLogPlusPlus:
         self.saved_data_for_k_anon_sparse = [[] for _ in range(self.m_prime)] # for k anonymity and switching to dense
 
         self.regularHLL = regularHLL
+        if self.regularHLL:
+            self.mode = 'dense'
 
     def _get_alpha(self, m):
         # according to Google's paper
@@ -120,7 +122,7 @@ class HyperLogLogPlusPlus:
 
         Z = 1.0 / np.sum(2.0 ** -registers)
         if self.regularHLL: # no bias correcting
-            return Z
+            return self.alpha * m * m * Z 
         E = self.alpha * m * m * Z if self.mode == 'dense' else self.sparse_alpha * m * m * Z 
 
         # Bias correction and thresholds
@@ -137,7 +139,7 @@ class HyperLogLogPlusPlus:
         return E # default
     
     def _linear_counting(self, m, V):
-        print("in linear count: m=", m, ", V=", V)
+        # print("in linear count: m=", m, ", V=", V)
         return m * math.log(m / V) # V is number of zero-valued buckets
 
     def aggregate(self, other):
@@ -169,6 +171,7 @@ class HyperLogLogPlusPlus:
                 num_max = rank_list.count(max_value) # count how many people had the same max rank in this bucket
                 num_maxes.append(num_max)
             num_buckets_less_than_k = sum([1 for num_max in num_maxes if 0 < num_max and num_max < k])
+            # print(num_buckets_less_than_k)
             return num_buckets_less_than_k/self.m
         else: # sparse
             num_maxes = []
@@ -180,6 +183,7 @@ class HyperLogLogPlusPlus:
                 num_max = hashed_ranks.count(max_value)
                 num_maxes.append(num_max)
             num_buckets_less_than_k = sum([1 for num_max in num_maxes if 0 < num_max and num_max < k])
+            # print(num_buckets_less_than_k)
             return num_buckets_less_than_k/self.m_prime
             
 if __name__ == '__main__':
